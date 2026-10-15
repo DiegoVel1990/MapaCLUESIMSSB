@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-  <link rel="stylesheet" href="./styles.css?v=cluster-tone-2">
+  <link rel="stylesheet" href="./styles.css?v=map-legend-1">
 </head>
 <body>
   <header class="topbar">
@@ -54,12 +54,17 @@
         <button id="download-csv" class="secondary-button" hidden>Descargar resultados CSV <span aria-hidden="true">↓</span></button>
         <div id="nearby-results" class="nearby-results" aria-live="polite"></div>
       </section>
-      <div class="sidebar-footer"><span class="legend-dot level-one"></span> 1.º nivel <span class="legend-dot level-two"></span> 2.º nivel <span class="legend-dot level-three"></span> 3.º nivel</div>
     </aside>
     <section class="map-area" aria-label="Mapa de establecimientos">
       <div id="map" role="application" aria-label="Mapa interactivo de unidades IMSS-BIENESTAR"></div>
       <div class="map-status" id="map-status">Cargando establecimientos…</div>
       <button id="reset-map" class="map-control" title="Mostrar todas las unidades" aria-label="Mostrar todas las unidades">↺ <span>Ver todo</span></button>
+      <div class="map-legend" aria-label="Simbología por nivel de atención">
+        <span class="map-legend-title">Nivel de atención</span>
+        <span class="map-legend-item"><i class="legend-dot level-one"></i>Primer nivel</span>
+        <span class="map-legend-item"><i class="legend-dot level-two"></i>Segundo nivel</span>
+        <span class="map-legend-item"><i class="legend-dot level-three"></i>Tercer nivel</span>
+      </div>
       <div class="map-credit">Directorio IMSS-BIENESTAR · © Esri, HERE, Garmin, OpenStreetMap contributors y GIS User Community</div>
     </section>
   </main>
