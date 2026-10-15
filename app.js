@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     map: $('map'), search: $('search'), clearSearch: $('clear-search'), searchSuggestions: $('search-suggestions'), clues: $('clues-filter'), state: $('state-filter'), level: $('level-filter'), status: $('status-filter'),
-    count: $('result-count'), states: $('state-count'), statusText: $('map-status'), nearbySearch: $('nearby-search'), suggestions: $('suggestions'),
+    statusText: $('map-status'), nearbySearch: $('nearby-search'), suggestions: $('suggestions'),
     radius: $('radius'), nearbyButton: $('nearby-button'), downloadCsv: $('download-csv'), nearbyResults: $('nearby-results'), reset: $('reset-map')
   };
   const map = L.map(els.map, { zoomControl: false, preferCanvas: true }).setView([23.7, -102.2], 5);
@@ -15,14 +15,7 @@
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, maxNativeZoom: 16, attribution: esriAttribution, pane: 'overlayPane'
   }).addTo(map);
-  const clusters = L.markerClusterGroup({
-    chunkedLoading: true, maxClusterRadius: 48, showCoverageOnHover: false,
-    iconCreateFunction(cluster) {
-      const n = cluster.getChildCount();
-      const size = n < 100 ? 'small' : n < 1000 ? 'medium' : 'large';
-      return L.divIcon({ html: `<div>${n.toLocaleString('es-MX')}</div>`, className: `cluster-${size}`, iconSize: null });
-    }
-  }).addTo(map);
+  const unitLayer = L.layerGroup().addTo(map);
   let allUnits = [];
   let visibleUnits = [];
   let selectedUnit = null;
@@ -32,7 +25,7 @@
   const numberFormat = new Intl.NumberFormat('es-MX');
   const normalize = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-MX').trim();
   const escapeText = (s) => String(s ?? '—');
-  const levelColor = (level) => level === 'SEGUNDO NIVEL' ? '#9F2241' : level === 'TERCER NIVEL' ? '#235B4E' : '#BC955C';
+  const levelColor = (level) => level === 'SEGUNDO NIVEL' ? '#235B4E' : level === 'TERCER NIVEL' ? '#9F2241' : '#BC955C';
   const popup = (u) => {
     const root = document.createElement('div');
     const title = document.createElement('div'); title.className = 'popup-title'; title.textContent = u.nombre || 'Unidad sin nombre'; root.append(title);
@@ -49,7 +42,7 @@
     return root;
   };
   const iconFor = (u, isReference = false) => {
-    const size = u.nivel === 'TERCER NIVEL' ? 19 : u.nivel === 'SEGUNDO NIVEL' ? 16 : 13;
+    const size = u.nivel === 'TERCER NIVEL' ? 21 : u.nivel === 'SEGUNDO NIVEL' ? 18 : 14;
     const outer = isReference ? 24 : size + 4;
     return L.divIcon({
     className: '',
@@ -65,25 +58,30 @@
   const optionList = (select, values) => values.forEach((value) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = value; select.append(opt); });
   function filtered() {
     const q = normalize(els.search.value);
-    const clues = normalize(els.clues.value);
+    const clues = els.clues.value;
     return allUnits.filter((u) => (!els.state.value || u.entidad === els.state.value)
       && (!els.level.value || u.nivel === els.level.value)
       && (!els.status.value || u.estatus === els.status.value)
-      && (!clues || normalize(u.clues).includes(clues))
+      && (!clues || u.clues === clues)
       && (!q || u._search.includes(q)));
   }
   function applyFilters() {
-    visibleUnits = filtered();
-    clusters.clearLayers();
-    const markers = visibleUnits.map((u) => {
-      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}` });
-      marker.bindPopup(popup(u), { maxWidth: 330 });
-      return marker;
+    visibleUnits = filtered().sort((a, b) => {
+      const rank = (u) => u.nivel === 'PRIMER NIVEL' ? 1 : u.nivel === 'SEGUNDO NIVEL' ? 2 : u.nivel === 'TERCER NIVEL' ? 3 : 0;
+      return rank(a) - rank(b);
     });
-    clusters.addLayers(markers);
-    els.count.textContent = numberFormat.format(visibleUnits.length);
-    els.states.textContent = numberFormat.format(new Set(visibleUnits.map((u) => u.entidad)).size);
-    els.statusText.textContent = `${numberFormat.format(visibleUnits.length)} unidades en el mapa`;
+    unitLayer.clearLayers();
+    visibleUnits.forEach((u) => {
+      const radius = u.nivel === 'TERCER NIVEL' ? 6.5 : u.nivel === 'SEGUNDO NIVEL' ? 5.25 : 4;
+      const opacity = u.nivel === 'PRIMER NIVEL' ? 0.82 : 0.96;
+      const marker = L.circleMarker([u.lat, u.lng], {
+        radius, color: '#ffffff', weight: 1.2, opacity: 0.95,
+        fillColor: levelColor(u.nivel), fillOpacity: opacity
+      });
+      marker.bindPopup(popup(u), { maxWidth: 330 });
+      marker.addTo(unitLayer);
+    });
+    if (els.statusText) els.statusText.hidden = true;
     els.clearSearch.hidden = !els.search.value;
   }
   function showSuggestions() {
@@ -171,7 +169,7 @@
   els.search.addEventListener('keydown', (event) => { if (event.key === 'Escape') { els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); } if (event.key === 'Enter' && !els.searchSuggestions.hidden) { event.preventDefault(); els.searchSuggestions.querySelector('button')?.click(); } });
   els.clearSearch.addEventListener('click', () => { els.search.value = ''; els.searchSuggestions.hidden = true; applyFilters(); els.search.focus(); });
   [els.state, els.level, els.status].forEach((el) => el.addEventListener('change', applyFilters));
-  els.clues.addEventListener('input', applyFilters);
+  els.clues.addEventListener('change', applyFilters);
   els.nearbySearch.addEventListener('input', () => { selectedUnit = null; els.nearbyButton.disabled = true; clearNearby(); showSuggestions(); });
   els.nearbySearch.addEventListener('focus', showSuggestions);
   els.suggestions.addEventListener('click', (event) => { const button = event.target.closest('button[data-index]'); if (button) selectUnit(suggestionsNow[Number(button.dataset.index)]); });
@@ -189,8 +187,11 @@
     optionList(els.state, [...new Set(allUnits.map((u) => u.entidad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
     optionList(els.level, [...new Set(allUnits.map((u) => u.nivel).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
     optionList(els.status, [...new Set(allUnits.map((u) => u.estatus).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
+    [...allUnits].sort((a, b) => a.clues.localeCompare(b.clues, 'es')).forEach((u) => {
+      const option = document.createElement('option'); option.value = u.clues; option.textContent = `${u.clues} — ${u.nombre}`; els.clues.append(option);
+    });
     applyFilters();
   }).catch((error) => {
-    console.error(error); els.statusText.textContent = 'No se pudo cargar la base de establecimientos.';
+    console.error(error); els.statusText.hidden = false; els.statusText.textContent = 'No se pudo cargar la base de establecimientos.';
   });
 })();
