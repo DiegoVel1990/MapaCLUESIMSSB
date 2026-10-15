@@ -23,9 +23,13 @@
       const count = cluster.getChildCount();
       const size = count < 100 ? 'small' : count < 1000 ? 'medium' : 'large';
       const diameter = size === 'small' ? 40 : size === 'medium' ? 50 : 60;
+      const levels = new Set(cluster.getAllChildMarkers().map((marker) => marker.options.nivel));
+      const tone = levels.size === 1 && levels.has('SEGUNDO NIVEL') ? 'green'
+        : levels.size === 1 && levels.has('TERCER NIVEL') ? 'red'
+          : 'gold';
       return L.divIcon({
         html: `<div>${count.toLocaleString('es-MX')}</div>`,
-        className: `cluster-gold cluster-${size}`,
+        className: `cluster-${tone} cluster-${size}`,
         iconSize: [diameter, diameter],
         iconAnchor: [diameter / 2, diameter / 2]
       });
@@ -87,7 +91,7 @@
     });
     clusters.clearLayers();
     const markers = visibleUnits.map((u) => {
-      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}` });
+      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}`, nivel: u.nivel });
       marker.bindPopup(popup(u), { maxWidth: 330 });
       return marker;
     });

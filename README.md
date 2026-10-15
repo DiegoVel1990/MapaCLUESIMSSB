@@ -14,7 +14,7 @@ Para actualizar la información, reemplace `data/unidades.json` por la nueva ver
 
 ## Contenido
 
-- Mapa Leaflet con símbolos por nivel de atención y burbujas doradas para los puntos agrupados.
+- Mapa Leaflet con símbolos por nivel de atención y burbujas de agrupación con color según el nivel contenido.
 - Filtros por entidad, nivel y estatus; búsqueda por CLUES, unidad o municipio.
 - Autocompletado en la búsqueda general y filtro independiente por CLUES.
 - Ventana con los datos básicos al seleccionar un establecimiento.
