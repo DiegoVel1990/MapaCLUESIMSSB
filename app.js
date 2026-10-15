@@ -4,7 +4,8 @@
   const els = {
     map: $('map'), search: $('search'), clearSearch: $('clear-search'), searchSuggestions: $('search-suggestions'), clues: $('clues-filter'), state: $('state-filter'), level: $('level-filter'), status: $('status-filter'),
     statusText: $('map-status'), nearbySearch: $('nearby-search'), suggestions: $('suggestions'),
-    radius: $('radius'), nearbyButton: $('nearby-button'), downloadCsv: $('download-csv'), nearbyResults: $('nearby-results'), reset: $('reset-map')
+    radius: $('radius'), nearbyButton: $('nearby-button'), downloadCsv: $('download-csv'), nearbyResults: $('nearby-results'), reset: $('reset-map'), clearFilters: $('clear-filters'),
+    levelOneCount: $('count-level-one'), levelTwoCount: $('count-level-two'), levelThreeCount: $('count-level-three')
   };
   const map = L.map(els.map, { zoomControl: false, preferCanvas: true }).setView([23.7, -102.2], 5);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -83,6 +84,17 @@
     return Math.hypot(dx, dy);
   };
   const optionList = (select, values) => values.forEach((value) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = value; select.append(opt); });
+  function updateCluesOptions() {
+    const selectedClue = els.clues.value;
+    const matchingUnits = allUnits.filter((u) => (!els.state.value || u.entidad === els.state.value)
+      && (!els.level.value || u.nivel === els.level.value)
+      && (!els.status.value || u.estatus === els.status.value));
+    els.clues.replaceChildren(new Option('Todas las CLUES', ''));
+    [...matchingUnits].sort((a, b) => a.clues.localeCompare(b.clues, 'es')).forEach((u) => {
+      const option = document.createElement('option'); option.value = u.clues; option.textContent = `${u.clues} — ${u.nombre}`; els.clues.append(option);
+    });
+    if (matchingUnits.some((u) => u.clues === selectedClue)) els.clues.value = selectedClue;
+  }
   function filtered() {
     const q = normalize(els.search.value);
     const clues = els.clues.value;
@@ -97,6 +109,9 @@
       const rank = (u) => u.nivel === 'PRIMER NIVEL' ? 1 : u.nivel === 'SEGUNDO NIVEL' ? 2 : u.nivel === 'TERCER NIVEL' ? 3 : 0;
       return rank(a) - rank(b);
     });
+    els.levelOneCount.textContent = numberFormat.format(visibleUnits.filter((u) => u.nivel === 'PRIMER NIVEL').length);
+    els.levelTwoCount.textContent = numberFormat.format(visibleUnits.filter((u) => u.nivel === 'SEGUNDO NIVEL').length);
+    els.levelThreeCount.textContent = numberFormat.format(visibleUnits.filter((u) => u.nivel === 'TERCER NIVEL').length);
     clusters.clearLayers();
     const markers = visibleUnits.map((u) => {
       const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}` });
@@ -191,7 +206,7 @@
   els.search.addEventListener('focus', showSearchSuggestions);
   els.search.addEventListener('keydown', (event) => { if (event.key === 'Escape') { els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); } if (event.key === 'Enter' && !els.searchSuggestions.hidden) { event.preventDefault(); els.searchSuggestions.querySelector('button')?.click(); } });
   els.clearSearch.addEventListener('click', () => { els.search.value = ''; els.searchSuggestions.hidden = true; applyFilters(); els.search.focus(); });
-  [els.state, els.level, els.status].forEach((el) => el.addEventListener('change', applyFilters));
+  [els.state, els.level, els.status].forEach((el) => el.addEventListener('change', () => { updateCluesOptions(); applyFilters(); }));
   els.clues.addEventListener('change', applyFilters);
   els.nearbySearch.addEventListener('input', () => { selectedUnit = null; els.nearbyButton.disabled = true; clearNearby(); showSuggestions(); });
   els.nearbySearch.addEventListener('focus', showSuggestions);
@@ -202,6 +217,17 @@
     if (!event.target.closest('.search-wrap')) { els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); }
   });
   els.nearbyButton.addEventListener('click', runNearby);
+  els.clearFilters.addEventListener('click', () => {
+    els.search.value = '';
+    els.state.value = '';
+    els.level.value = '';
+    els.status.value = '';
+    els.clues.value = '';
+    els.searchSuggestions.hidden = true;
+    els.search.setAttribute('aria-expanded', 'false');
+    updateCluesOptions();
+    applyFilters();
+  });
   els.radius.addEventListener('keydown', (event) => { if (event.key === 'Enter') runNearby(); });
   els.reset.addEventListener('click', () => { clearNearby(); map.setView([23.7, -102.2], 5); applyFilters(); });
   els.radius.max = '25';
@@ -210,9 +236,7 @@
     optionList(els.state, [...new Set(allUnits.map((u) => u.entidad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
     optionList(els.level, [...new Set(allUnits.map((u) => u.nivel).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
     optionList(els.status, [...new Set(allUnits.map((u) => u.estatus).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
-    [...allUnits].sort((a, b) => a.clues.localeCompare(b.clues, 'es')).forEach((u) => {
-      const option = document.createElement('option'); option.value = u.clues; option.textContent = `${u.clues} — ${u.nombre}`; els.clues.append(option);
-    });
+    updateCluesOptions();
     applyFilters();
   }).catch((error) => {
     console.error(error); els.statusText.hidden = false; els.statusText.textContent = 'No se pudo cargar la base de establecimientos.';
