@@ -2,14 +2,18 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const els = {
-    map: $('map'), search: $('search'), clearSearch: $('clear-search'), state: $('state-filter'), level: $('level-filter'), status: $('status-filter'),
+    map: $('map'), search: $('search'), clearSearch: $('clear-search'), searchSuggestions: $('search-suggestions'), clues: $('clues-filter'), state: $('state-filter'), level: $('level-filter'), status: $('status-filter'),
     count: $('result-count'), states: $('state-count'), statusText: $('map-status'), nearbySearch: $('nearby-search'), suggestions: $('suggestions'),
-    radius: $('radius'), nearbyButton: $('nearby-button'), nearbyResults: $('nearby-results'), reset: $('reset-map')
+    radius: $('radius'), nearbyButton: $('nearby-button'), downloadCsv: $('download-csv'), nearbyResults: $('nearby-results'), reset: $('reset-map')
   };
   const map = L.map(els.map, { zoomControl: false, preferCanvas: true }).setView([23.7, -102.2], 5);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  const esriAttribution = 'Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, and the GIS User Community';
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, maxNativeZoom: 16, attribution: esriAttribution
+  }).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, maxNativeZoom: 16, attribution: esriAttribution, pane: 'overlayPane'
   }).addTo(map);
   const clusters = L.markerClusterGroup({
     chunkedLoading: true, maxClusterRadius: 48, showCoverageOnHover: false,
@@ -28,7 +32,7 @@
   const numberFormat = new Intl.NumberFormat('es-MX');
   const normalize = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-MX').trim();
   const escapeText = (s) => String(s ?? '—');
-  const levelColor = (level) => level === 'SEGUNDO NIVEL' ? '#4387c6' : level === 'TERCER NIVEL' ? '#9a65bd' : '#26956a';
+  const levelColor = (level) => level === 'SEGUNDO NIVEL' ? '#9F2241' : level === 'TERCER NIVEL' ? '#235B4E' : '#BC955C';
   const popup = (u) => {
     const root = document.createElement('div');
     const title = document.createElement('div'); title.className = 'popup-title'; title.textContent = u.nombre || 'Unidad sin nombre'; root.append(title);
@@ -44,23 +48,28 @@
     const badge = document.createElement('span'); badge.className = `popup-status${u.estatus === 'EN OPERACION' ? '' : ' off'}`; badge.textContent = u.estatus || 'Estatus no disponible'; root.append(badge);
     return root;
   };
-  const iconFor = (u, isReference = false) => L.divIcon({
+  const iconFor = (u, isReference = false) => {
+    const size = u.nivel === 'TERCER NIVEL' ? 19 : u.nivel === 'SEGUNDO NIVEL' ? 16 : 13;
+    const outer = isReference ? 24 : size + 4;
+    return L.divIcon({
     className: '',
-    html: `<span style="display:block;width:${isReference ? 18 : 13}px;height:${isReference ? 18 : 13}px;border-radius:50%;background:${isReference ? '#123f35' : levelColor(u.nivel)};border:${isReference ? '3px solid #fff' : '2px solid white'};box-shadow:0 1px 5px #1c3d2e80;${isReference ? 'outline:3px solid #123f3540;' : ''}"></span>`,
-    iconSize: [isReference ? 24 : 17, isReference ? 24 : 17], iconAnchor: [isReference ? 12 : 8, isReference ? 12 : 8]
-  });
+    html: `<span style="display:block;width:${isReference ? 18 : size}px;height:${isReference ? 18 : size}px;border-radius:50%;background:${isReference ? '#123f35' : levelColor(u.nivel)};border:${isReference ? '3px solid #fff' : '2px solid white'};box-shadow:0 1px 5px #1c3d2e80;${isReference ? 'outline:3px solid #123f3540;' : ''}"></span>`,
+    iconSize: [outer, outer], iconAnchor: [outer / 2, outer / 2]
+  }); };
   const distanceKm = (a, b) => {
     const rad = (v) => v * Math.PI / 180;
-    const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-    return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    const dx = 6371 * rad(b.lng - a.lng) * Math.cos(rad(a.lat));
+    const dy = 6371 * rad(b.lat - a.lat);
+    return Math.hypot(dx, dy);
   };
   const optionList = (select, values) => values.forEach((value) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = value; select.append(opt); });
   function filtered() {
     const q = normalize(els.search.value);
+    const clues = normalize(els.clues.value);
     return allUnits.filter((u) => (!els.state.value || u.entidad === els.state.value)
       && (!els.level.value || u.nivel === els.level.value)
       && (!els.status.value || u.estatus === els.status.value)
+      && (!clues || normalize(u.clues).includes(clues))
       && (!q || u._search.includes(q)));
   }
   function applyFilters() {
@@ -79,12 +88,14 @@
   }
   function showSuggestions() {
     const q = normalize(els.nearbySearch.value);
+    els.nearbySearch.value = els.nearbySearch.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const clueQuery = normalize(els.nearbySearch.value);
     els.suggestions.replaceChildren();
-    suggestionsNow = q.length < 2 ? [] : allUnits.filter((u) => u._search.includes(q)).slice(0, 8);
+    suggestionsNow = clueQuery.length < 2 ? [] : allUnits.filter((u) => normalize(u.clues).includes(clueQuery)).slice(0, 8);
     suggestionsNow.forEach((u, index) => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'suggestion'; button.setAttribute('role', 'option'); button.dataset.index = String(index);
-      const name = document.createElement('strong'); name.textContent = u.nombre;
-      const detail = document.createElement('small'); detail.textContent = `${u.clues} · ${u.municipio}, ${u.entidad}`;
+      const name = document.createElement('strong'); name.textContent = u.clues;
+      const detail = document.createElement('small'); detail.textContent = `${u.nombre} · ${u.municipio}, ${u.entidad}`;
       button.append(name, detail); els.suggestions.append(button);
     });
     els.suggestions.hidden = !suggestionsNow.length;
@@ -92,7 +103,7 @@
   }
   function selectUnit(u) {
     selectedUnit = u;
-    els.nearbySearch.value = `${u.nombre} · ${u.clues}`;
+    els.nearbySearch.value = u.clues;
     els.nearbyButton.disabled = false;
     els.suggestions.hidden = true;
     els.nearbySearch.setAttribute('aria-expanded', 'false');
@@ -103,17 +114,26 @@
     if (referenceMarker) map.removeLayer(referenceMarker);
     radiusLayer = referenceMarker = null;
     els.nearbyResults.replaceChildren();
+    els.downloadCsv.hidden = true;
   }
   function runNearby() {
     const radius = Number(els.radius.value);
-    if (!selectedUnit || !Number.isFinite(radius) || radius < 1 || radius > 500) {
-      els.nearbyResults.textContent = 'Indica un radio entre 1 y 500 km.'; return;
+    if (!selectedUnit || !Number.isFinite(radius) || radius < 1 || radius > 25) {
+      els.nearbyResults.textContent = 'Selecciona una CLUES de referencia e indica un radio entre 1 y 25 km.'; return;
     }
     clearNearby();
     const center = L.latLng(selectedUnit.lat, selectedUnit.lng);
     radiusLayer = L.circle(center, { radius: radius * 1000, color: '#155444', weight: 2, fillColor: '#55a27d', fillOpacity: 0.09 }).addTo(map);
     referenceMarker = L.marker(center, { icon: iconFor(selectedUnit, true), zIndexOffset: 1000 }).addTo(map).bindPopup(popup(selectedUnit));
     const near = allUnits.filter((u) => u.clues !== selectedUnit.clues).map((u) => ({ u, d: distanceKm(selectedUnit, u) })).filter((x) => x.d <= radius).sort((a, b) => a.d - b.d);
+    els.downloadCsv.hidden = false;
+    els.downloadCsv.onclick = () => {
+      const columns = [['CLUES','clues'],['Nombre de la unidad','nombre'],['Nombre comercial','comercial'],['Nivel de atención','nivel'],['Estatus de operación','estatus'],['Entidad','entidad'],['Municipio','municipio'],['Localidad','localidad'],['Latitud','lat'],['Longitud','lng']];
+      const rows = [ [...columns.map(([label]) => label), 'Distancia euclidiana (km)'].join(','), ...near.map(({u,d}) => [...columns.map(([,key]) => u[key] ?? ''), d.toFixed(2)].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')) ];
+      const blob = new Blob(['\uFEFF', rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = url; link.download = `unidades_cercanas_${selectedUnit.clues}_${radius}km.csv`; link.click(); URL.revokeObjectURL(url);
+    };
     const summary = document.createElement('p'); summary.className = 'nearby-summary';
     summary.textContent = `${near.length ? numberFormat.format(near.length) : 'Ninguna'} unidad${near.length === 1 ? '' : 'es'} en ${radius} km`;
     els.nearbyResults.append(summary);
@@ -130,19 +150,40 @@
       if (near.length > 50) { const note = document.createElement('div'); note.textContent = `Mostrando las 50 más próximas de ${numberFormat.format(near.length)}.`; els.nearbyResults.append(note); }
     }
     map.fitBounds(radiusLayer.getBounds(), { padding: [35, 35], maxZoom: 10 });
-    els.statusText.textContent = `${numberFormat.format(near.length)} unidades en el radio seleccionado`;
+    els.statusText.textContent = `${numberFormat.format(near.length)} unidades dentro de ${radius} km`;
   }
-  els.search.addEventListener('input', applyFilters);
-  els.clearSearch.addEventListener('click', () => { els.search.value = ''; applyFilters(); els.search.focus(); });
+  function showSearchSuggestions() {
+    const q = normalize(els.search.value);
+    els.searchSuggestions.replaceChildren();
+    const matches = q.length < 2 ? [] : allUnits.filter((u) => u._search.includes(q)).slice(0, 7);
+    matches.forEach((u) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'suggestion';
+      const name = document.createElement('strong'); name.textContent = u.nombre;
+      const detail = document.createElement('small'); detail.textContent = `${u.clues} · ${u.municipio}, ${u.entidad}`;
+      button.append(name, detail); button.addEventListener('click', () => { els.search.value = u.clues; els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); applyFilters(); });
+      els.searchSuggestions.append(button);
+    });
+    els.searchSuggestions.hidden = matches.length === 0;
+    els.search.setAttribute('aria-expanded', String(matches.length > 0));
+  }
+  els.search.addEventListener('input', () => { showSearchSuggestions(); applyFilters(); });
+  els.search.addEventListener('focus', showSearchSuggestions);
+  els.search.addEventListener('keydown', (event) => { if (event.key === 'Escape') { els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); } if (event.key === 'Enter' && !els.searchSuggestions.hidden) { event.preventDefault(); els.searchSuggestions.querySelector('button')?.click(); } });
+  els.clearSearch.addEventListener('click', () => { els.search.value = ''; els.searchSuggestions.hidden = true; applyFilters(); els.search.focus(); });
   [els.state, els.level, els.status].forEach((el) => el.addEventListener('change', applyFilters));
-  els.nearbySearch.addEventListener('input', showSuggestions);
+  els.clues.addEventListener('input', applyFilters);
+  els.nearbySearch.addEventListener('input', () => { selectedUnit = null; els.nearbyButton.disabled = true; clearNearby(); showSuggestions(); });
   els.nearbySearch.addEventListener('focus', showSuggestions);
   els.suggestions.addEventListener('click', (event) => { const button = event.target.closest('button[data-index]'); if (button) selectUnit(suggestionsNow[Number(button.dataset.index)]); });
   els.nearbySearch.addEventListener('keydown', (event) => { if (event.key === 'Escape') { els.suggestions.hidden = true; els.nearbySearch.setAttribute('aria-expanded', 'false'); } if (event.key === 'Enter' && suggestionsNow.length) { event.preventDefault(); selectUnit(suggestionsNow[0]); } });
-  document.addEventListener('click', (event) => { if (!event.target.closest('.autocomplete-wrap')) { els.suggestions.hidden = true; els.nearbySearch.setAttribute('aria-expanded', 'false'); } });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.autocomplete-wrap')) { els.suggestions.hidden = true; els.nearbySearch.setAttribute('aria-expanded', 'false'); }
+    if (!event.target.closest('.search-wrap')) { els.searchSuggestions.hidden = true; els.search.setAttribute('aria-expanded', 'false'); }
+  });
   els.nearbyButton.addEventListener('click', runNearby);
   els.radius.addEventListener('keydown', (event) => { if (event.key === 'Enter') runNearby(); });
   els.reset.addEventListener('click', () => { clearNearby(); map.setView([23.7, -102.2], 5); applyFilters(); });
+  els.radius.max = '25';
   fetch('./data/unidades.json').then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }).then((data) => {
     allUnits = data.filter((u) => Number.isFinite(u.lat) && Number.isFinite(u.lng)).map((u) => ({ ...u, _search: normalize([u.nombre, u.clues, u.entidad, u.municipio, u.localidad, u.comercial].join(' ')) }));
     optionList(els.state, [...new Set(allUnits.map((u) => u.entidad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));

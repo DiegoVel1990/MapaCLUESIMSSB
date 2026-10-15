@@ -17,15 +17,15 @@
   <header class="topbar">
     <a class="brand" href="./" aria-label="Inicio">
       <span class="brand-mark" aria-hidden="true">+</span>
-      <span><strong>IMSS-BIENESTAR</strong><small>Directorio de unidades de salud</small></span>
+      <span><strong>IMSS-BIENESTAR</strong><small>Directorio de establecimientos de Salud IMSS-Bienestar (DGIS)</small></span>
     </a>
-    <div class="topbar-meta"><span class="live-dot"></span>Mapa interactivo <span class="meta-divider">·</span> Base agosto 2026</div>
+    <div class="topbar-meta"><span class="live-dot"></span>Establecimientos de Salud DGIS agosto de 2026</div>
   </header>
   <main class="layout">
     <aside class="sidebar" aria-label="Filtros y búsqueda">
       <div class="intro">
-        <p class="eyebrow">RED DE ATENCIÓN</p>
-        <h1>Encuentra una unidad</h1>
+        <p class="eyebrow">Establecimientos de salud</p>
+        <h1>Encuentra tu unidad</h1>
         <p class="intro-copy">Explora los establecimientos de salud y localiza otras unidades cercanas.</p>
       </div>
       <section class="stats" aria-label="Resumen de resultados">
@@ -35,7 +35,7 @@
       </section>
       <section class="control-section">
         <label class="field-label" for="search">Buscar unidad</label>
-        <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Nombre, CLUES o municipio" autocomplete="off"><button id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" hidden>×</button></div>
+        <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Nombre, CLUES o municipio" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggestions"><button id="clear-search" class="clear-search" aria-label="Limpiar búsqueda" hidden>×</button><div id="search-suggestions" class="suggestions search-suggestions" role="listbox" hidden></div></div>
       </section>
       <section class="control-section filters">
         <label class="field-label" for="state-filter">Entidad federativa</label>
@@ -44,22 +44,26 @@
         <select id="level-filter"><option value="">Todos los niveles</option></select>
         <label class="field-label" for="status-filter">Estatus de operación</label>
         <select id="status-filter"><option value="">Todos los estatus</option></select>
+        <label class="field-label" for="clues-filter">CLUES</label>
+        <input id="clues-filter" class="text-filter" type="search" placeholder="Filtrar por CLUES" autocomplete="off">
       </section>
       <section class="nearby-section">
-        <div class="section-title"><span class="target-icon" aria-hidden="true">◎</span><div><h2>Unidades cercanas</h2><p>Selecciona una unidad para iniciar.</p></div></div>
-        <label class="field-label" for="nearby-search">Unidad de referencia</label>
-        <div class="autocomplete-wrap"><input id="nearby-search" type="search" placeholder="Escribe nombre o CLUES" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"><div id="suggestions" class="suggestions" role="listbox" hidden></div></div>
-        <div class="radius-row"><label class="field-label" for="radius">Radio</label><div class="radius-input"><input id="radius" type="number" min="1" max="500" value="25" inputmode="numeric"><span>km</span></div></div>
+        <div class="section-title"><span class="target-icon" aria-hidden="true">◎</span><div><h2>Unidades cercanas</h2><p>Busca por clave CLUES y consulta las unidades a su alrededor.</p></div></div>
+        <label class="field-label" for="nearby-search">CLUES de referencia</label>
+        <div class="autocomplete-wrap"><input id="nearby-search" type="search" placeholder="Escribe la clave CLUES" autocomplete="off" autocapitalize="characters" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"><div id="suggestions" class="suggestions" role="listbox" hidden></div></div>
+        <div class="radius-row"><label class="field-label" for="radius">Radio</label><div class="radius-input"><input id="radius" type="number" min="1" max="25" value="25" inputmode="numeric"><span>km</span></div></div>
+        <p class="radius-note">Radio euclidiano · máximo de búsqueda: 25 km</p>
         <button id="nearby-button" class="primary-button" disabled>Buscar cercanas <span aria-hidden="true">→</span></button>
+        <button id="download-csv" class="secondary-button" hidden>Descargar resultados CSV <span aria-hidden="true">↓</span></button>
         <div id="nearby-results" class="nearby-results" aria-live="polite"></div>
       </section>
-      <div class="sidebar-footer"><span class="legend-dot level-one"></span> Primer nivel <span class="legend-dot level-two"></span> Segundo <span class="legend-dot level-three"></span> Tercero</div>
+      <div class="sidebar-footer"><span class="legend-dot level-one"></span> 1.º nivel <span class="legend-dot level-two"></span> 2.º nivel <span class="legend-dot level-three"></span> 3.º nivel</div>
     </aside>
     <section class="map-area" aria-label="Mapa de establecimientos">
       <div id="map" role="application" aria-label="Mapa interactivo de unidades IMSS-BIENESTAR"></div>
       <div class="map-status" id="map-status">Cargando establecimientos…</div>
       <button id="reset-map" class="map-control" title="Mostrar todas las unidades" aria-label="Mostrar todas las unidades">↺ <span>Ver todo</span></button>
-      <div class="map-credit">Directorio IMSS-BIENESTAR · Mapa © <a href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" rel="noopener">Esri</a> · Datos © OpenStreetMap</div>
+      <div class="map-credit">Directorio IMSS-BIENESTAR · © Esri, HERE, Garmin, OpenStreetMap contributors y GIS User Community</div>
     </section>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
