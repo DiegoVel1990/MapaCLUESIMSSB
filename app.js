@@ -23,13 +23,21 @@
       const count = cluster.getChildCount();
       const size = count < 100 ? 'small' : count < 1000 ? 'medium' : 'large';
       const diameter = size === 'small' ? 40 : size === 'medium' ? 50 : 60;
-      const levels = new Set(cluster.getAllChildMarkers().map((marker) => marker.options.nivel));
-      const tone = levels.size === 1 && levels.has('SEGUNDO NIVEL') ? 'green'
-        : levels.size === 1 && levels.has('TERCER NIVEL') ? 'red'
-          : 'gold';
+      const levels = new Set(cluster.getAllChildMarkers().map((marker) => marker.nivel));
+      const activeLevel = els.level.value;
+      const tone = activeLevel === 'SEGUNDO NIVEL' ? 'green'
+        : activeLevel === 'TERCER NIVEL' ? 'red'
+          : levels.size === 1 && levels.has('SEGUNDO NIVEL') ? 'green'
+            : levels.size === 1 && levels.has('TERCER NIVEL') ? 'red'
+              : 'gold';
+      const colors = {
+        gold: { halo: 'rgba(188,149,92,.32)', fill: '#BC955C', text: '#302414' },
+        green: { halo: 'rgba(35,91,78,.28)', fill: '#235B4E', text: '#ffffff' },
+        red: { halo: 'rgba(159,34,65,.26)', fill: '#9F2241', text: '#ffffff' }
+      }[tone];
       return L.divIcon({
-        html: `<div>${count.toLocaleString('es-MX')}</div>`,
-        className: `cluster-${tone} cluster-${size}`,
+        html: `<div class="cluster-halo" style="background:${colors.halo}"><span class="cluster-count" style="background:${colors.fill};color:${colors.text}">${count.toLocaleString('es-MX')}</span></div>`,
+        className: `level-cluster cluster-size-${size}`,
         iconSize: [diameter, diameter],
         iconAnchor: [diameter / 2, diameter / 2]
       });
@@ -91,7 +99,8 @@
     });
     clusters.clearLayers();
     const markers = visibleUnits.map((u) => {
-      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}`, nivel: u.nivel });
+      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}` });
+      marker.nivel = u.nivel;
       marker.bindPopup(popup(u), { maxWidth: 330 });
       return marker;
     });
