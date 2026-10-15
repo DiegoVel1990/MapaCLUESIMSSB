@@ -15,7 +15,22 @@
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, maxNativeZoom: 16, attribution: esriAttribution, pane: 'overlayPane'
   }).addTo(map);
-  const unitLayer = L.layerGroup().addTo(map);
+  const clusters = L.markerClusterGroup({
+    chunkedLoading: true,
+    maxClusterRadius: 48,
+    showCoverageOnHover: false,
+    iconCreateFunction(cluster) {
+      const count = cluster.getChildCount();
+      const size = count < 100 ? 'small' : count < 1000 ? 'medium' : 'large';
+      const diameter = size === 'small' ? 40 : size === 'medium' ? 50 : 60;
+      return L.divIcon({
+        html: `<div>${count.toLocaleString('es-MX')}</div>`,
+        className: `cluster-gold cluster-${size}`,
+        iconSize: [diameter, diameter],
+        iconAnchor: [diameter / 2, diameter / 2]
+      });
+    }
+  }).addTo(map);
   let allUnits = [];
   let visibleUnits = [];
   let selectedUnit = null;
@@ -70,22 +85,17 @@
       const rank = (u) => u.nivel === 'PRIMER NIVEL' ? 1 : u.nivel === 'SEGUNDO NIVEL' ? 2 : u.nivel === 'TERCER NIVEL' ? 3 : 0;
       return rank(a) - rank(b);
     });
-    unitLayer.clearLayers();
-    visibleUnits.forEach((u) => {
-      const radius = u.nivel === 'TERCER NIVEL' ? 6.5 : u.nivel === 'SEGUNDO NIVEL' ? 5.25 : 4;
-      const opacity = u.nivel === 'PRIMER NIVEL' ? 0.82 : 0.96;
-      const marker = L.circleMarker([u.lat, u.lng], {
-        radius, color: '#ffffff', weight: 1.2, opacity: 0.95,
-        fillColor: levelColor(u.nivel), fillOpacity: opacity
-      });
+    clusters.clearLayers();
+    const markers = visibleUnits.map((u) => {
+      const marker = L.marker([u.lat, u.lng], { icon: iconFor(u), title: `${u.nombre} — ${u.clues}` });
       marker.bindPopup(popup(u), { maxWidth: 330 });
-      marker.addTo(unitLayer);
+      return marker;
     });
+    clusters.addLayers(markers);
     if (els.statusText) els.statusText.hidden = true;
     els.clearSearch.hidden = !els.search.value;
   }
   function showSuggestions() {
-    const q = normalize(els.nearbySearch.value);
     els.nearbySearch.value = els.nearbySearch.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const clueQuery = normalize(els.nearbySearch.value);
     els.suggestions.replaceChildren();
